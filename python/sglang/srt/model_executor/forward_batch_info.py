@@ -32,7 +32,7 @@ import warnings
 from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import lru_cache, total_ordering
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 
@@ -660,6 +660,9 @@ class ForwardBatch(ForwardBatchDeepSeekMHAMixin):
     # dLLM committed positions are immutable, including literal mask-token IDs.
     # None when no request in the batch has a literal mask ID.
     dllm_prompt_mask: Optional[torch.Tensor] = None
+    # Per-request repetition/frequency/presence penalties over generated tokens.
+    # None when no request in the batch sets one.
+    dllm_penalties: Optional[Any] = None
 
     # For extend
     extend_num_tokens: Optional[int] = None
@@ -1186,6 +1189,9 @@ class ForwardBatch(ForwardBatchDeepSeekMHAMixin):
         # encoding uses the ordinary EXTEND position path below.
         if batch.dllm_config is not None and ret.forward_mode.is_dllm_extend():
             block_size = batch.dllm_config.block_size
+            from sglang.srt.dllm.penalties import DllmPenalties
+
+            ret.dllm_penalties = DllmPenalties.from_reqs(batch.reqs, device)
             positions_dtype = torch.int64 if is_hip() or _is_npu else torch.int32
             positions = [
                 i

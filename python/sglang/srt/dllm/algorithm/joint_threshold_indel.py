@@ -138,6 +138,8 @@ class JointThresholdInDel(DllmAlgorithm):
             block_end = block_start + self.block_size
             curr_input_ids = forward_batch.input_ids[block_start:block_end]
             curr_logits = full_logits[block_start:block_end]
+            if forward_batch.dllm_penalties is not None:
+                forward_batch.dllm_penalties.apply(i, curr_logits)
             curr_prompt_index = state["prompt_index"]
 
             # Greedy decode: argmax tokens and their confidence
