@@ -556,6 +556,19 @@ class KimiK2Detector(BaseReasoningFormatDetector):
             force_nonempty_content=force_nonempty_content,
         )
 
+    def _find_tool_start(self, text: str, preceded_by: str = "") -> int:
+        # LLaDA2.2 sometimes emits <|tool_call_begin|> without the section token;
+        # either one ends the reasoning.
+        found = [
+            idx
+            for idx in (
+                text.find("<|tool_calls_section_begin|>"),
+                text.find("<|tool_call_begin|>"),
+            )
+            if idx != -1
+        ]
+        return min(found) if found else -1
+
 
 class K2V3Detector(BaseReasoningFormatDetector):
     """Reasoning detector for canonical K2 Horizon IFM tokens.

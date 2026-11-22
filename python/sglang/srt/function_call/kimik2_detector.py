@@ -159,7 +159,12 @@ class KimiK2Detector(BaseFormatDetector):
 
     def has_tool_call(self, text: str) -> bool:
         """Check if the text contains a KimiK2 format tool call."""
-        return self.bot_token in text
+        return self._tool_start(text) != -1
+
+    def _tool_start(self, text: str) -> int:
+        # LLaDA2.2 sometimes emits <|tool_call_begin|> without the section token.
+        found = [i for i in (text.find(self.bot_token), text.find(self.tool_call_start_token)) if i != -1]
+        return min(found) if found else -1
 
     def detect_and_parse(self, text: str, tools: List[Tool]) -> StreamingParseResult:
         """
@@ -169,7 +174,7 @@ class KimiK2Detector(BaseFormatDetector):
         :param tools: List of available tools.
         :return: StreamingParseResult with normal_text (content before tool calls) and calls (parsed items).
         """
-        if self.bot_token not in text:
+        if self._tool_start(text) == -1:
             return StreamingParseResult(normal_text=text, calls=[])
         try:
             function_call_tuples = self.tool_call_regex.findall(text)
@@ -202,7 +207,7 @@ class KimiK2Detector(BaseFormatDetector):
                 )
                 local_tool_index += 1
 
-            content = text[: text.find(self.bot_token)]
+            content = text[: self._tool_start(text)]
             return StreamingParseResult(normal_text=content, calls=tool_calls)
 
         except Exception as e:
