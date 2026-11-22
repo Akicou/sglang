@@ -13,7 +13,6 @@ import torch
 _PATH = os.path.join(os.path.dirname(__file__), "..", "..", "python", "sglang", "srt", "dllm", "penalties.py")
 _spec = importlib.util.spec_from_file_location("dllm_penalties", _PATH)
 penalties = importlib.util.module_from_spec(_spec)
-sys.modules["dllm_penalties"] = penalties  # dataclasses resolve annotations through sys.modules
 _spec.loader.exec_module(penalties)
 DllmPenalties = penalties.DllmPenalties
 

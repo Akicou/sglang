@@ -10,7 +10,6 @@ token. Like those penalizers, only generated tokens count, not the prompt.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import torch
@@ -23,19 +22,16 @@ _Row = Tuple[torch.Tensor, torch.Tensor, float, float, float]
 
 
 def _values(sampling_params) -> Tuple[float, float, float]:
-    rep = getattr(sampling_params, "repetition_penalty", None)
-    freq = getattr(sampling_params, "frequency_penalty", None)
-    pres = getattr(sampling_params, "presence_penalty", None)
     return (
-        1.0 if rep is None else float(rep),
-        0.0 if freq is None else float(freq),
-        0.0 if pres is None else float(pres),
+        float(sampling_params.repetition_penalty),
+        float(sampling_params.frequency_penalty),
+        float(sampling_params.presence_penalty),
     )
 
 
-@dataclass
 class DllmPenalties:
-    rows: List[Optional[_Row]]
+    def __init__(self, rows: List[Optional[_Row]]):
+        self.rows = rows
 
     @classmethod
     def from_token_lists(
