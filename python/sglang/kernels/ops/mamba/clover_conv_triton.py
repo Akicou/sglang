@@ -159,9 +159,11 @@ def supports_clover_local_memory_conv(
         and block_size in (1, 2, 4, 8, 16, 32)
         and width == 4
         and activation in ("silu", "swish")
-        # Plain Triton gather/elementwise conv, no Hopper-only primitives (TMA, wgmma):
-        # Ampere (sm80) added alongside Hopper/Blackwell, untested upstream.
-        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (8, 9, 10)
+        # Plain Triton gather/elementwise conv, no Hopper-only primitives (TMA, wgmma)
+        # and no TMEM (SM100-only), so it needs no tcgen05 path: Ampere (8, sm80) and
+        # workstation Blackwell (12, sm120) added alongside Hopper (9) and datacenter
+        # Blackwell (10, sm100/103), which are a different, non-binary-compatible ISA.
+        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (8, 9, 10, 12)
     )
 
 
