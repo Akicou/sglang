@@ -249,7 +249,9 @@ def supports_clover_local_memory_triton(
         and value.shape[-1] == 128
         and value.shape[2] % query.shape[2] == 0
         and value.shape[2] % key.shape[2] == 0
-        and torch.cuda.get_device_capability(query.device)[0] in (9, 10)
+        # Plain Triton tl.dot attention, no Hopper-only primitives: Ampere (sm80)
+        # added alongside Hopper/Blackwell, untested upstream.
+        and torch.cuda.get_device_capability(query.device)[0] in (8, 9, 10)
     )
 
 

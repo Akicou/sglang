@@ -193,7 +193,9 @@ def supports_clover_block_coreset_triton(
         and router_logits.shape[0] % block_size == 0
         and top_k == 8
         and router_logits.dtype in (torch.bfloat16, torch.float16, torch.float32)
-        and torch.cuda.get_device_capability(router_logits.device)[0] in (9, 10)
+        # Plain Triton gather/mask kernel, no Hopper-only primitives: Ampere (sm80)
+        # added alongside Hopper/Blackwell, untested upstream.
+        and torch.cuda.get_device_capability(router_logits.device)[0] in (8, 9, 10)
     )
 
 

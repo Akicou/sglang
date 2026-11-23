@@ -159,7 +159,9 @@ def supports_clover_local_memory_conv(
         and block_size in (1, 2, 4, 8, 16, 32)
         and width == 4
         and activation in ("silu", "swish")
-        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (9, 10)
+        # Plain Triton gather/elementwise conv, no Hopper-only primitives (TMA, wgmma):
+        # Ampere (sm80) added alongside Hopper/Blackwell, untested upstream.
+        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (8, 9, 10)
     )
 
 
