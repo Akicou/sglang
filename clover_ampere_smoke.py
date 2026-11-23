@@ -70,7 +70,7 @@ try:
     query = torch.randn(1, seq_len, num_q_heads, head_dim, dtype=torch.bfloat16, device=device)
     key = torch.randn(1, seq_len, num_k_heads, head_dim, dtype=torch.bfloat16, device=device)
     value = torch.randn(1, seq_len, num_v_heads, head_dim, dtype=torch.bfloat16, device=device)
-    g = torch.randn(seq_len, num_v_heads, dtype=torch.float32, device=device) * 0.01
+    g = torch.randn(1, seq_len, num_v_heads, dtype=torch.float32, device=device) * 0.01
     clean_ssm_states = torch.randn(batch, num_v_heads, head_dim, head_dim, dtype=torch.bfloat16, device=device)
     cache_indices = torch.arange(batch, dtype=torch.int32, device=device)
     active_valid_mask = torch.ones(seq_len, dtype=torch.bool, device=device)
