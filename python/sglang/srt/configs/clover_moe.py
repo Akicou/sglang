@@ -64,8 +64,17 @@ class CloverMoeConfig(PretrainedConfig):
         layer_types=None,
         norm_topk_prob=True,
         output_gate_type=None,
+        vision_config=None,
         **kwargs,
     ):
+        if isinstance(vision_config, dict):
+            from transformers.models.qwen3_5_moe.configuration_qwen3_5_moe import (
+                Qwen3_5MoeVisionConfig,
+            )
+
+            vision_config = Qwen3_5MoeVisionConfig(**vision_config)
+        # Clover-Preview-VL: Qwen3.6's vision tower; None for text-only Clover.
+        self.vision_config = vision_config
         super().__init__(
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
@@ -194,7 +203,7 @@ register_linear_attn_model(
     LinearAttnModelSpec(
         config_class=CloverMoeConfig,
         backend_class_name="sglang.srt.layers.attention.linear.clover_backend.CloverGDNAttnBackend",
-        arch_names=["CloverMoeModelLM"],
+        arch_names=["CloverMoeModelLM", "CloverMoeVLModelLM"],
         support_mamba_cache_extra_buffer=True,
     )
 )

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @_register_for("CloverMoeModelLM")
+@_register_for("CloverMoeVLModelLM")
 def _clover_overrides(server_args: Any, hf_config: Any) -> dict:
     cfg = resolving_view(server_args)
     if (

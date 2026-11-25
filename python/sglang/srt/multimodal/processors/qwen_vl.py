@@ -32,6 +32,7 @@ from sglang.srt.models.qwen3_5 import (
     Qwen3_5ForConditionalGeneration,
     Qwen3_5MoeForConditionalGeneration,
 )
+from sglang.srt.models.clover_moe import CloverMoeVLModelLM
 from sglang.srt.models.qwen3_5_mtp import Qwen3_5ForCausalLMMTP
 from sglang.srt.models.qwen3_omni_moe import Qwen3OmniMoeForConditionalGeneration
 from sglang.srt.models.qwen3_vl import Qwen3VLForConditionalGeneration
@@ -341,6 +342,7 @@ class QwenVLImageProcessor(MediaArtifactCacheMixin, SGLangBaseProcessor):
         Qwen3_5ForConditionalGeneration,
         Qwen3_5MoeForConditionalGeneration,
         Qwen3_5ForCausalLMMTP,
+        CloverMoeVLModelLM,
         InternS2PreviewForConditionalGeneration,
         InternS2MobiusForConditionalGeneration,
         Qwen3OmniMoeForConditionalGeneration,
@@ -350,6 +352,9 @@ class QwenVLImageProcessor(MediaArtifactCacheMixin, SGLangBaseProcessor):
 
     def __init__(self, hf_config, server_args, _processor, *args, **kwargs):
         self.model_type = hf_config.model_type
+        if self.model_type == "clover_moe":
+            # Clover-Preview-VL uses Qwen3.6's vision tower, tokens and M-RoPE.
+            self.model_type = "qwen3_5_moe"
         self.uses_media_artifacts_without_cache = self.model_type in (
             "qwen3_vl",
             "qwen3_vl_moe",

@@ -705,7 +705,8 @@ class CloverMoeModelLM(nn.Module):
                 getattr(param, "weight_loader", default_weight_loader)(param, weight)
                 loaded.add(name)
 
-        missing = sorted(params.keys() - loaded)
+        # Vision parameters (CloverMoeVLModelLM) are loaded separately.
+        missing = sorted(k for k in params.keys() - loaded if not k.startswith("visual."))
         for name, shards in loaded_shards.items():
             if name.endswith(".experts.w13_weight"):
                 expected = {
@@ -754,4 +755,105 @@ class CloverMoeModelLM(nn.Module):
         )
 
 
-EntryClass = CloverMoeModelLM
+class CloverMoeVLModelLM(CloverMoeModelLM):
+    """Clover with Qwen3.6's own vision tower (kaivoss/Clover-Preview-VL).
+
+    Clover is a block-diffusion conversion of Qwen3.6-35B-A3B, so the ViT and
+    merger are Qwen3.6's and image tokens use Qwen3.6's interleaved M-RoPE.
+    Image features enter only through the prefill; the CLOVER draft/verify
+    steps are text blocks positioned with each request's M-RoPE delta.
+    """
+
+    def __init__(self, config: PretrainedConfig, quant_config=None, prefix: str = "") -> None:
+        super().__init__(config, quant_config, prefix)
+        from transformers.models.qwen3_5_moe.configuration_qwen3_5_moe import (
+            Qwen3_5MoeVisionConfig,
+        )
+
+        from sglang.srt.models.qwen3_vl import Qwen3VLMoeVisionModel
+
+        vision_config = config.vision_config
+        if isinstance(vision_config, dict):
+            vision_config = Qwen3_5MoeVisionConfig(**vision_config)
+        self.visual = Qwen3VLMoeVisionModel(
+            vision_config,
+            quant_config=None,
+            norm_eps=getattr(config, "rms_norm_eps", 1e-6),
+            prefix=add_prefix("model.visual", prefix),
+            use_data_parallel=False,
+        )
+        self.use_data_parallel = False
+        self.is_mrope_enabled = True
+        self.deepstack_visual_indexes = []
+        self.use_deepstack = {}
+
+    from sglang.srt.models.qwen3_vl import Qwen3VLForConditionalGeneration as _QwenVL
+
+    pad_input_ids = _QwenVL.pad_input_ids
+    get_image_feature = _QwenVL.get_image_feature
+    _get_visual_feature = _QwenVL._get_visual_feature
+    _materialize_visual_items = _QwenVL._materialize_visual_items
+    _offload_packed_visual_inputs = _QwenVL._offload_packed_visual_inputs
+    del _QwenVL
+
+    @torch.no_grad()
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        positions: torch.Tensor,
+        forward_batch: ForwardBatch,
+        input_embeds: Optional[torch.Tensor] = None,
+        pp_proxy_tensors: Optional[PPProxyTensors] = None,
+    ):
+        from sglang.srt.managers.mm_utils import general_mm_embed_routine
+
+        if forward_batch.mrope_positions is not None:
+            positions = forward_batch.mrope_positions
+        if input_embeds is None and forward_batch.contains_mm_inputs():
+            hidden_states = general_mm_embed_routine(
+                input_ids=input_ids,
+                forward_batch=forward_batch,
+                language_model=self.model,
+                multimodal_model=self,
+                positions=positions,
+                pp_proxy_tensors=pp_proxy_tensors,
+            )
+        else:
+            hidden_states = self.model(
+                input_ids,
+                positions,
+                forward_batch,
+                input_embeds,
+                pp_proxy_tensors=pp_proxy_tensors,
+            )
+        return self.logits_processor(
+            input_ids, hidden_states, self.lm_head, forward_batch
+        )
+
+    def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]):
+        visual = []
+
+        def text_weights():
+            for name, weight in weights:
+                if name.startswith(("model.visual.", "visual.")):
+                    visual.append((name, weight))
+                else:
+                    yield name, weight
+
+        loaded = super().load_weights(text_weights())
+        params = dict(self.named_parameters())
+        for name, weight in visual:
+            name = name.replace("model.visual.", "visual.", 1)
+            name = name.replace("attn.qkv.", "attn.qkv_proj.")
+            if name not in params:
+                raise ValueError(f"Unexpected Clover-VL vision weight: {name}")
+            param = params[name]
+            getattr(param, "weight_loader", default_weight_loader)(param, weight)
+            loaded.add(name)
+        missing = sorted(k for k in params if k.startswith("visual.") and k not in loaded)
+        if missing:
+            raise ValueError("Missing Clover-VL vision weights: " + ", ".join(missing[:8]))
+        return loaded
+
+
+EntryClass = [CloverMoeModelLM, CloverMoeVLModelLM]

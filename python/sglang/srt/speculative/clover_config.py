@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 def configure_clover(server_args):
     cfg = resolving_view(server_args)
     model = model_config_of(server_args)
-    if model.hf_config.architectures != ["CloverMoeModelLM"]:
-        raise ValueError("CLOVER speculative decoding requires CloverMoeModelLM")
+    if model.hf_config.architectures not in (["CloverMoeModelLM"], ["CloverMoeVLModelLM"]):
+        raise ValueError(
+            "CLOVER speculative decoding requires CloverMoeModelLM or CloverMoeVLModelLM"
+        )
     if cfg.dllm_algorithm is not None:
         raise ValueError("CLOVER cannot be combined with --dllm-algorithm")
     if cfg.speculative_draft_model_path is not None:

@@ -118,6 +118,28 @@ class CloverWorker(BaseSpecWorker):
             get_tp_group().broadcast(tensor, src=0)
         return tensor
 
+    def _mrope_positions(self, batch, positions):
+        """Text-block M-RoPE positions: 1-D positions plus each request's image delta.
+
+        Matches ForwardBatch.compute_spec_mrope_positions, which the verify pass
+        uses, so preview and verify see identical positions for image requests.
+        """
+        mm_inputs = batch.multimodal_inputs
+        if not mm_inputs or all(m is None for m in mm_inputs):
+            return positions.unsqueeze(0).expand(3, -1)
+        deltas = torch.stack(
+            [
+                (
+                    torch.zeros(1, dtype=torch.int64)
+                    if m is None or m.mrope_position_delta is None
+                    else m.mrope_position_delta.reshape(-1)[:1].to(torch.int64).cpu()
+                )
+                for m in mm_inputs
+            ]
+        ).to(self.device)
+        shifted = positions.view(batch.batch_size(), -1) + deltas
+        return shifted.reshape(-1).unsqueeze(0).repeat(3, 1)
+
     def _preview_batch(self, batch, block, positions, cache_loc, plan):
         bs = batch.batch_size()
         width = self.block_size
@@ -148,7 +170,7 @@ class CloverWorker(BaseSpecWorker):
             spec_algorithm=batch.spec_algorithm,
             spec_info=CloverPreviewInput(width),
             capture_hidden_mode=CaptureHiddenMode.NULL,
-            mrope_positions=positions.unsqueeze(0).expand(3, -1),
+            mrope_positions=self._mrope_positions(batch, positions),
         )
         plan.bind(fb, self.model_runner.kv_index_translator)
         return fb
