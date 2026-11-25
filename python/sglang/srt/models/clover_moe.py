@@ -708,6 +708,10 @@ class CloverMoeModelLM(nn.Module):
         # Vision parameters (CloverMoeVLModelLM) are loaded separately.
         missing = sorted(k for k in params.keys() - loaded if not k.startswith("visual."))
         for name, shards in loaded_shards.items():
+            if "weight_scale" in name or "input_scale" in name:
+                # Quantized-expert scale tensors: per-shard presence is already
+                # implied by the matching w13_weight/w2_weight check.
+                continue
             if name.endswith(".experts.w13_weight"):
                 expected = {
                     (i, s)
