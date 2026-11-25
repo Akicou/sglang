@@ -706,7 +706,11 @@ class CloverMoeModelLM(nn.Module):
                 loaded.add(name)
 
         # Vision parameters (CloverMoeVLModelLM) are loaded separately.
-        missing = sorted(k for k in params.keys() - loaded if not k.startswith("visual."))
+        # blockscale_swizzled is derived from weight_scale at load, not a checkpoint tensor.
+        missing = sorted(
+            k for k in params.keys() - loaded
+            if not k.startswith("visual.") and "blockscale_swizzled" not in k
+        )
         for name, shards in loaded_shards.items():
             if "weight_scale" in name or "input_scale" in name or "blockscale_swizzled" in name:
                 # Quantized-expert scale tensors: per-shard presence is already
