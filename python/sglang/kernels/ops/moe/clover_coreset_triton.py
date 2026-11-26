@@ -193,7 +193,10 @@ def supports_clover_block_coreset_triton(
         and router_logits.shape[0] % block_size == 0
         and top_k == 8
         and router_logits.dtype in (torch.bfloat16, torch.float16, torch.float32)
-        and torch.cuda.get_device_capability(router_logits.device)[0] in (9, 10)
+        # Plain Triton gather/mask kernel, no tensor-core or TMEM use at all:
+        # Ampere (8, sm80) and workstation Blackwell (12, sm120) added alongside
+        # Hopper (9) and datacenter Blackwell (10, sm100/103).
+        and torch.cuda.get_device_capability(router_logits.device)[0] in (8, 9, 10, 12)
     )
 
 
@@ -241,9 +244,10 @@ def _apply_clover_block_coreset_triton(
         router_logits.shape, dtype=router_logits.dtype, device=router_logits.device
     )
 
-    # Four warps and 32-expert tiles measured fastest on H200 for batch 1 to 48
-    # at block 16 and 32, and at batch 1 on Blackwell.
-    num_warps, score_block_e = 4, 32
+    # Four warps and 32-expert tiles measured faster for batch 1, block 32 on Blackwell.
+    single_block_32 = batch_size == 1 and block_size == 32
+    num_warps = 4 if single_block_32 else 8
+    score_block_e = 32 if single_block_32 else 64
     block_r = triton.next_power_of_2(block_size * top_k)
 
     _clover_router_topk_scores_kernel[(num_tokens,)](

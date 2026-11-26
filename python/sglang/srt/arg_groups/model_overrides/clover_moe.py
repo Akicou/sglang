@@ -26,9 +26,12 @@ def _clover_overrides(server_args: Any, hf_config: Any) -> dict:
         raise ValueError(
             "Clover preview kernels require CUDA; serving dtypes other than BF16 are unvalidated"
         )
-    if get_device_sm() // 10 not in (9, 10):
+    if get_device_sm() // 10 not in (8, 9, 10, 12):
+        # Ampere and workstation Blackwell run the same Triton kernels (see the
+        # clover_gdn/conv/coreset/penalty allowlists); Hopper and datacenter
+        # Blackwell are the originally validated targets.
         raise ValueError(
-            "Clover preview kernels require compute capability 9.x or 10.x"
+            "Clover preview kernels require compute capability 8.x, 9.x, 10.x or 12.x"
         )
     if (
         cfg.linear_attn_backend not in ("triton", "flashinfer")

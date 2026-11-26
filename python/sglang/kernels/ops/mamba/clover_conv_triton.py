@@ -159,7 +159,11 @@ def supports_clover_local_memory_conv(
         and block_size in (1, 2, 4, 8, 16, 32)
         and width == 4
         and activation in ("silu", "swish")
-        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (9, 10)
+        # Plain Triton gather/elementwise conv, no Hopper-only primitives (TMA, wgmma)
+        # and no TMEM (SM100-only), so it needs no tcgen05 path: Ampere (8, sm80) and
+        # workstation Blackwell (12, sm120) added alongside Hopper (9) and datacenter
+        # Blackwell (10, sm100/103), which are a different, non-binary-compatible ISA.
+        and torch.cuda.get_device_capability(mixed_qkv.device)[0] in (8, 9, 10, 12)
     )
 
 
@@ -230,9 +234,8 @@ def clover_local_memory_conv(
     output = torch.empty_like(mixed_qkv)
     block_t = triton.next_power_of_2(block_size)
     num_token_tiles = triton.cdiv(block_size, block_t)
-    # 64-channel tiles measured faster up to batch 2 and 128 from batch 4 on H200,
-    # for block 16 and 32 alike; batch 1, block 32 also favors 64 on Blackwell.
-    block_c = 64 if batch_size <= 2 else 128
+    # 64-channel tiles measured faster for the batch 1, block 32 preview on Blackwell.
+    block_c = 64 if batch_size == 1 and block_size == 32 else 128
     grid = (triton.cdiv(channels, block_c), batch_size * num_token_tiles)
     _bd_gdn_preview_conv_kernel[grid](
         mixed_qkv,
